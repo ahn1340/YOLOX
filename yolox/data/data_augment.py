@@ -14,6 +14,7 @@ import random
 
 import cv2
 import numpy as np
+import albumentations as A
 
 from yolox.utils import xyxy2cxcywh
 
@@ -167,6 +168,10 @@ class TrainTransform:
         self.hsv_prob = hsv_prob
 
     def __call__(self, image, targets, input_dim):
+        print("image size: {}".format(image.size()))
+        print("targets: {}".format(targets.size()))
+        print("input dim: {}".format(input_dim))
+        
         boxes = targets[:, :4].copy()
         labels = targets[:, 4].copy()
         if len(boxes) == 0:
