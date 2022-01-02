@@ -161,6 +161,26 @@ def preproc(img, input_size, swap=(2, 0, 1)):
     return padded_img, r
 
 
+def aug_transform(img, bboxes, prob=0.5):
+    transform = A.Compose([
+        A.Flip(p=0.5),
+        A.RandomRotate90(p=0.5),
+        A.Affine(scale=(0.8, 1.2),
+                 translate_percent=(0.0, 0.3),
+                 rotate=(-20, 20),
+                 shear=(-30, 30),
+                 interpolation=1,
+                 cval=0,
+                 always_apply=False,
+                 p=0.5),
+    ], bbox_params=A.BboxParams(format='yolo', min_visibility=0.2, min_area=1024))
+
+    transformed = transform(image=img, bboxes=bboxes)
+    img = transformed['image']
+    bboxes = transformed['bboxes']
+    return img, bboxes
+
+
 class TrainTransform:
     def __init__(self, max_labels=50, flip_prob=0.5, hsv_prob=1.0):
         self.max_labels = max_labels
@@ -168,8 +188,8 @@ class TrainTransform:
         self.hsv_prob = hsv_prob
 
     def __call__(self, image, targets, input_dim):
-        print("image size: {}".format(image.shape))
-        print("targets: {}".format(targets.shape))
+        print("image size: {}".format(image.shape))  # 960, 960, 3
+        print("targets: {}".format(targets.shape))  # num_bbox, 5 (x,y,w,h,label)
         print("input dim: {}".format(input_dim))
 
         boxes = targets[:, :4].copy()
@@ -186,6 +206,8 @@ class TrainTransform:
         labels_o = targets_o[:, 4]
         # bbox_o: [xyxy] to [c_x,c_y,w,h]
         boxes_o = xyxy2cxcywh(boxes_o)
+        print("boxes_o: {}".format(boxes_o[0, :]))
+        image_o, boxes_o = aug_transform(image_o, boxes_o)
 
         if random.random() < self.hsv_prob:
             augment_hsv(image)
@@ -195,6 +217,11 @@ class TrainTransform:
         # boxes [xyxy] 2 [cx,cy,w,h]
         boxes = xyxy2cxcywh(boxes)
         boxes *= r_
+        print("image_t: {}".format(image_t.shape))
+        print("boxes shape: {}".format(boxes.shape))
+        print("boxes: {}".format(boxes[0, :]))
+        image_t, boxes = aug_transform(image_t, boxes)
+
 
         mask_b = np.minimum(boxes[:, 2], boxes[:, 3]) > 1
         boxes_t = boxes[mask_b]
@@ -214,6 +241,9 @@ class TrainTransform:
             : self.max_labels
         ]
         padded_labels = np.ascontiguousarray(padded_labels, dtype=np.float32)
+        print("final image_t: {}".format(image_t.shape))
+        print("final padded_labels: {}".format(padded_labels.shape))
+        print("padded_label: {}".format(padded_labels[0,:]))
         return image_t, padded_labels
 
 
